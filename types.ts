@@ -1,5 +1,5 @@
 
-export type TimerMode = 'work' | 'short_break' | 'deep_work';
+export type TimerMode = 'work' | 'short_break' | 'long_break' | 'deep_work';
 
 export interface TimerState {
   remainingSeconds: number;

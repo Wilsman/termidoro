@@ -1,8 +1,11 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Terminal from './components/Terminal';
 import { TimerState, TimerMode, HistoryItem } from './types';
 import { MODE_SETTINGS } from './constants';
+
+const LONG_BREAK_AFTER_CYCLES = 4;
+const TRANSITION_DELAY_MS = 2200;
 
 const App: React.FC = () => {
   const [state, setState] = useState<TimerState>({
@@ -26,7 +29,32 @@ const App: React.FC = () => {
     setHistory(prev => [...prev, { timestamp: new Date().toISOString(), command, output, type }]);
   }, []);
 
+  const transitionTimeoutRef = useRef<number | null>(null);
+  const [transition, setTransition] = useState<null | { from: TimerMode; to: TimerMode; key: number }>(null);
+
+  const clearTransition = useCallback(() => {
+    if (transitionTimeoutRef.current !== null) {
+      window.clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+    setTransition(null);
+  }, []);
+
+  const startMode = useCallback((mode: TimerMode, reason: 'manual' | 'auto') => {
+    const newDuration = MODE_SETTINGS[mode].duration;
+    setState(prev => ({
+      ...prev,
+      mode,
+      totalSeconds: newDuration,
+      remainingSeconds: newDuration,
+      isActive: true,
+    }));
+    const prefix = reason === 'auto' ? 'auto' : 'start';
+    addHistory(`${prefix} ${mode}`, `Sequence started. Duration set to ${MODE_SETTINGS[mode].duration / 60}m.`, 'command');
+  }, [addHistory]);
+
   const handleCommand = useCallback((action: TimerMode | 'reset') => {
+    clearTransition();
     if (action === 'reset') {
       setState(prev => ({
         ...prev,
@@ -37,16 +65,8 @@ const App: React.FC = () => {
       return;
     }
 
-    const newDuration = MODE_SETTINGS[action].duration;
-    setState(prev => ({
-      ...prev,
-      mode: action,
-      totalSeconds: newDuration,
-      remainingSeconds: newDuration,
-      isActive: true,
-    }));
-    addHistory(`${action}`, `Sequence started. Duration set to ${MODE_SETTINGS[action].duration / 60}m.`, 'command');
-  }, [addHistory]);
+    startMode(action, 'manual');
+  }, [addHistory, clearTransition, startMode]);
 
   useEffect(() => {
     let interval: number | undefined;
@@ -60,17 +80,32 @@ const App: React.FC = () => {
       }, 1000);
     } else if (state.remainingSeconds === 0 && state.isActive) {
       const completedMode = state.mode;
-      const nextCycles = (completedMode === 'work' || completedMode === 'deep_work') 
-        ? state.completedCycles + 1 
+      const nextCycles = (completedMode === 'work' || completedMode === 'deep_work')
+        ? state.completedCycles + 1
         : state.completedCycles;
-      
-      addHistory(`task_finish --id ${completedMode}`, 'Objective reached. System idling.', 'success');
-      
+
+      const nextMode: TimerMode = (completedMode === 'work' || completedMode === 'deep_work')
+        ? (nextCycles % LONG_BREAK_AFTER_CYCLES === 0 ? 'long_break' : 'short_break')
+        : 'work';
+
+      addHistory(
+        `task_finish --id ${completedMode}`,
+        `Objective reached. Executing transition sequence to ${MODE_SETTINGS[nextMode].label}.`,
+        'success'
+      );
+
       setState(prev => ({
         ...prev,
         isActive: false,
         completedCycles: nextCycles,
       }));
+
+      setTransition({ from: completedMode, to: nextMode, key: Date.now() });
+      transitionTimeoutRef.current = window.setTimeout(() => {
+        setTransition(null);
+        transitionTimeoutRef.current = null;
+        startMode(nextMode, 'auto');
+      }, TRANSITION_DELAY_MS);
 
       try {
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
@@ -81,11 +116,24 @@ const App: React.FC = () => {
     }
 
     return () => clearInterval(interval);
-  }, [state.isActive, state.remainingSeconds, state.mode, state.completedCycles, addHistory]);
+  }, [state.isActive, state.remainingSeconds, state.mode, state.completedCycles, addHistory, startMode]);
+
+  useEffect(() => {
+    return () => {
+      if (transitionTimeoutRef.current !== null) {
+        window.clearTimeout(transitionTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell ${transition ? `is-transitioning mode-${transition.to}` : ''}`}
+      data-transition-key={transition?.key || 0}
+    >
       <div className="bg-layer" />
+      <div className="celebration-layer" />
+      <div className="celebration-streaks" />
       <div className="grid-layer pointer-events-none" />
       <div className="window-frame">
         <Terminal 

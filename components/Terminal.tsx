@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { HistoryItem, TimerState, TimerMode } from "../types";
 import { MODE_SETTINGS, COMMANDS } from "../constants";
 
@@ -14,9 +15,14 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(true);
   const [decorationsEnabled, setDecorationsEnabled] = useState(false);
   const [opacity, setOpacity] = useState(1);
+  const [isSuperCompact, setIsSuperCompact] = useState(true);
+  const compactSizeRef = useRef<LogicalSize | null>(null);
+
+  const SUPER_COMPACT_WIDTH = 520;
+  const SUPER_COMPACT_HEIGHT = 240;
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -24,10 +30,104 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
   }, []);
 
   useEffect(() => {
+    invoke("set_always_on_top", { enabled: true }).catch(() => {});
+    invoke("set_decorations", { enabled: false }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [history, state.isActive]);
+
+  const formatClock = (date: Date) => {
+    return date
+      .toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      })
+      .toUpperCase();
+  };
+
+  const formatEndTime = (date: Date) => {
+    return date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  };
+
+  const formatTimer = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  };
+
+  const progressPercent =
+    Math.round(
+      ((state.totalSeconds - state.remainingSeconds) / state.totalSeconds) *
+        100,
+    ) || 0;
+
+  const endTime = new Date(
+    currentTime.getTime() + state.remainingSeconds * 1000,
+  );
+  const endTimeLabel = formatEndTime(endTime);
+  const progressColor =
+    state.mode === "short_break"
+      ? "bg-sky-400"
+      : state.mode === "long_break"
+        ? "bg-cyan-300"
+      : state.mode === "deep_work"
+        ? "bg-amber-400"
+        : "bg-emerald-400";
+
+  const toggleAlwaysOnTop = () => {
+    const next = !isAlwaysOnTop;
+    setIsAlwaysOnTop(next);
+    invoke("set_always_on_top", { enabled: next }).catch(() => {});
+  };
+
+  const toggleDecorations = () => {
+    const next = !decorationsEnabled;
+    setDecorationsEnabled(next);
+    invoke("set_decorations", { enabled: next }).catch(() => {});
+  };
+
+  const toggleSuperCompact = useCallback(async () => {
+    const appWindow = getCurrentWindow();
+
+    if (!isSuperCompact) {
+      try {
+        const currentSize = await appWindow.innerSize();
+        const scaleFactor = await appWindow.scaleFactor();
+        const currentLogicalSize = currentSize.toLogical(scaleFactor);
+        compactSizeRef.current = currentLogicalSize;
+        const targetWidth = Math.min(
+          currentLogicalSize.width,
+          SUPER_COMPACT_WIDTH,
+        );
+        const targetHeight = Math.min(
+          currentLogicalSize.height,
+          SUPER_COMPACT_HEIGHT,
+        );
+        await appWindow.setSize(
+          new LogicalSize(targetWidth, targetHeight),
+        );
+      } catch {}
+    } else {
+      try {
+        if (compactSizeRef.current) {
+          await appWindow.setSize(compactSizeRef.current);
+        }
+        compactSizeRef.current = null;
+      } catch {}
+    }
+
+    setIsSuperCompact((prev) => !prev);
+  }, [isSuperCompact]);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -45,6 +145,9 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
       } else if (event.code === "Digit2") {
         event.preventDefault();
         onCommand("short_break");
+      } else if (event.code === "Digit4") {
+        event.preventDefault();
+        onCommand("long_break");
       } else if (event.code === "Digit3") {
         event.preventDefault();
         onCommand("deep_work");
@@ -54,53 +157,15 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
       } else if (event.code === "KeyP") {
         event.preventDefault();
         toggleAlwaysOnTop();
+      } else if (event.code === "KeyC") {
+        event.preventDefault();
+        toggleSuperCompact();
       }
     };
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [decorationsEnabled, onCommand]);
-
-  const formatClock = (date: Date) => {
-    return date
-      .toLocaleTimeString([], {
-        hour: "numeric",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: true,
-      })
-      .toUpperCase();
-  };
-
-  const formatTimer = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-  };
-
-  const progressPercent =
-    Math.round(
-      ((state.totalSeconds - state.remainingSeconds) / state.totalSeconds) *
-        100,
-    ) || 0;
-  const progressColor =
-    state.mode === "short_break"
-      ? "bg-sky-400"
-      : state.mode === "deep_work"
-        ? "bg-amber-400"
-        : "bg-emerald-400";
-
-  const toggleAlwaysOnTop = () => {
-    const next = !isAlwaysOnTop;
-    setIsAlwaysOnTop(next);
-    invoke("set_always_on_top", { enabled: next }).catch(() => {});
-  };
-
-  const toggleDecorations = () => {
-    const next = !decorationsEnabled;
-    setDecorationsEnabled(next);
-    invoke("set_decorations", { enabled: next }).catch(() => {});
-  };
+  }, [decorationsEnabled, onCommand, toggleSuperCompact]);
 
   const handleClose = () => {
     const appWindow = getCurrentWindow();
@@ -115,18 +180,18 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
   return (
     <div
       data-tauri-drag-region
-      className={`flex flex-col h-full w-full bg-[#121417] ${decorationsEnabled ? "rounded-2xl border border-white/10" : "rounded-none border border-transparent"} shadow-[0_30px_80px_rgba(0,0,0,0.55)] overflow-hidden font-mono transition-all duration-500`}
+      className={`flex flex-col h-full w-full bg-[#121417] ${decorationsEnabled ? "rounded-2xl border border-white/10" : "rounded-none border border-transparent"} ${isSuperCompact ? "shadow-[0_20px_50px_rgba(0,0,0,0.45)]" : "shadow-[0_30px_80px_rgba(0,0,0,0.55)]"} overflow-hidden font-mono transition-all duration-500`}
     >
       {/* Title Bar */}
       <div
         data-tauri-drag-region
-        className="flex items-center justify-between px-4 py-2 bg-[#171b21] border-b border-white/5 shrink-0"
+        className={`flex items-center justify-between ${isSuperCompact ? "px-3 py-1.5" : "px-4 py-2"} bg-[#171b21] border-b border-white/5 shrink-0`}
       >
         <div data-tauri-drag-region className="flex items-center gap-2">
           <div
             className={`h-2 w-2 rounded-full ${state.isActive ? "bg-emerald-400/90" : "bg-white/40"}`}
           ></div>
-          <div className="text-[10px] text-white/60 select-none tracking-[0.25em] uppercase">
+          <div className={`text-[10px] text-white/60 select-none tracking-[0.25em] uppercase ${isSuperCompact ? "hidden sm:block" : ""}`}>
             TermiDoro
           </div>
         </div>
@@ -138,6 +203,14 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
             className={`text-[10px] px-2 py-1 rounded-md border ${isAlwaysOnTop ? "border-cyan-400/50 text-cyan-300" : "border-white/10 text-white/40"} hover:text-white/70 transition`}
           >
             Pin
+          </button>
+          <button
+            type="button"
+            onClick={toggleSuperCompact}
+            data-tauri-drag-region="false"
+            className={`text-[10px] px-2 py-1 rounded-md border ${isSuperCompact ? "border-amber-300/60 text-amber-200" : "border-white/10 text-white/40"} hover:text-white/70 transition`}
+          >
+            {isSuperCompact ? "Full" : "Compact"}
           </button>
           <div className="relative">
             <button
@@ -204,7 +277,15 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
                       ? "Hide Window Border"
                       : "Show Window Border"}
                   </button>
-                  <div className="text-[9px] text-white/25">Hotkey: B</div>
+                  <button
+                    type="button"
+                    onClick={toggleSuperCompact}
+                    data-tauri-drag-region="false"
+                    className="w-full px-2 py-1.5 text-[10px] text-left border border-white/10 bg-[#1b2026] hover:bg-[#242a31] hover:border-amber-300/40 text-gray-300 transition rounded-md"
+                  >
+                    {isSuperCompact ? "Exit Super Compact" : "Enter Super Compact"}
+                  </button>
+                  <div className="text-[9px] text-white/25">Hotkeys: B Border / C Compact</div>
                 </div>
               </div>
             )}
@@ -226,56 +307,67 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
       {/* Terminal Content Area (Internal Scrolling) */}
       <div
         ref={scrollRef}
-        className="flex-1 flex flex-col justify-center p-5 pb-3 overflow-y-auto space-y-4 scrollbar-hide"
+        className={`flex-1 flex flex-col justify-center overflow-y-auto scrollbar-hide ${isSuperCompact ? "px-3 py-2 space-y-2" : "p-5 pb-3 space-y-4"}`}
       >
-        {history.slice(-1).map((item, idx) => (
-          <div key={idx} className="space-y-1 animate-in fade-in duration-300">
-            <div className="flex items-center gap-3">
-              <span className="text-cyan-400 font-bold text-lg leading-none">
-                ❯
-              </span>
-              <span className="text-gray-200/80 text-sm tracking-wide">
-                {item.command}
-              </span>
-            </div>
-            {item.output && (
-              <div
-                className={`pl-7 text-xs ${item.type === "success" ? "text-emerald-400/90" : "text-white/35"} font-medium`}
-              >
-                {item.output}
+        {!isSuperCompact &&
+          history.slice(-1).map((item, idx) => (
+            <div key={idx} className="space-y-1 animate-in fade-in duration-300">
+              <div className="flex items-center gap-3">
+                <span className="text-cyan-400 font-bold text-lg leading-none">
+                  &gt;
+                </span>
+                <span className="text-gray-200/80 text-sm tracking-wide">
+                  {item.command}
+                </span>
               </div>
-            )}
-          </div>
-        ))}
+              {item.output && (
+                <div
+                  className={`pl-7 text-xs ${item.type === "success" ? "text-emerald-400/90" : "text-white/35"} font-medium`}
+                >
+                  {item.output}
+                </div>
+              )}
+            </div>
+          ))}
 
         {/* Focus Area */}
-        <div className="space-y-3 pt-1">
-          <div className="flex items-center gap-3">
-            <span className="text-cyan-400 font-bold text-lg leading-none">
-              ❯
-            </span>
-            <span className="text-gray-300 text-sm tracking-wide">
-              {state.isActive
-                ? `executing ${state.mode.replace("_", " ")}...`
-                : "awaiting task..."}
-              <span className="cursor ml-2"></span>
-            </span>
-          </div>
+        <div className={`${isSuperCompact ? "space-y-2" : "space-y-3 pt-1"}`}>
+          {!isSuperCompact && (
+            <div className="flex items-center gap-3">
+              <span className="text-cyan-400 font-bold text-lg leading-none">
+                &gt;
+              </span>
+              <span className="text-gray-300 text-sm tracking-wide">
+                {state.isActive
+                  ? `executing ${state.mode.replace("_", " ")}...`
+                  : "awaiting task..."}
+                <span className="cursor ml-2"></span>
+              </span>
+            </div>
+          )}
 
-          <div className="space-y-3">
+          <div className={`${isSuperCompact ? "space-y-2" : "space-y-3"}`}>
             <div
               className={`text-[11px] font-bold uppercase tracking-[0.2em] ${MODE_SETTINGS[state.mode].color}`}
             >
               {MODE_SETTINGS[state.mode].label}
             </div>
 
-            <div className="text-2xl font-light text-gray-200 flex items-center gap-3">
-              <span className="tabular-nums opacity-70 text-[18px]">
-                {formatClock(currentTime).split(" ")[0]}
-              </span>
-              <span className="text-white/10 text-xl font-thin">—</span>
+            <div
+              className={`${isSuperCompact ? "text-3xl" : "text-2xl"} font-light text-gray-200 flex items-center gap-3 ${state.isActive ? "drop-shadow-[0_0_16px_rgba(52,211,153,0.35)]" : ""}`}
+            >
+              {!isSuperCompact && (
+                <>
+                  <span className="tabular-nums opacity-70 text-[18px]">
+                    {formatClock(currentTime).split(" ")[0]}
+                  </span>
+                  <span className="text-white/10 text-xl font-thin">-</span>
+                </>
+              )}
               <div className="flex items-baseline gap-1.5 tabular-nums">
-                <span className="font-medium text-white">
+                <span
+                  className={`font-medium text-white ${state.isActive ? "animate-pulse" : ""}`}
+                >
                   {formatTimer(state.remainingSeconds)}
                 </span>
                 <span className="text-white/20 text-xs">
@@ -284,28 +376,48 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 mt-1">
-              <div className="relative h-[6px] flex-1 bg-white/[0.03] rounded-full overflow-hidden border border-white/10">
+            <div
+              className={`text-[9px] uppercase tracking-[0.25em] ${state.isActive ? "text-emerald-300/70" : "text-white/30"}`}
+            >
+              Ends {endTimeLabel}
+            </div>
+
+            <div className="flex items-center gap-3 mt-1">
+              <div className={`relative ${isSuperCompact ? "h-[4px]" : "h-[6px]"} flex-1 bg-white/[0.03] rounded-full overflow-hidden border border-white/10`}>
                 <div
-                  className={`h-full transition-all duration-1000 ease-linear ${progressColor}`}
+                  className={`h-full transition-all duration-1000 ease-linear ${progressColor} ${state.isActive ? "animate-pulse" : ""}`}
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <div className="text-[10px] font-bold text-white/30 tabular-nums w-8">
+              <div className={`${isSuperCompact ? "text-[9px]" : "text-[10px]"} font-bold text-white/30 tabular-nums w-8`}>
                 {progressPercent}%
               </div>
             </div>
+
+            {isSuperCompact && (
+              <div className="flex items-center justify-between text-[10px] text-white/40 tracking-[0.2em] uppercase">
+                <span>{state.isActive ? "Running" : "Idle"}</span>
+                <span className="tabular-nums">{formatClock(currentTime)}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="px-5 py-2 bg-[#121417] border-t border-white/5 text-[9px] text-white/30 tracking-[0.2em] uppercase flex items-center justify-between">
-        <span>Hotkeys: [1] Work [2] Short [3] Deep [R] Reset [P] Pin</span>
-        <div className="flex items-center gap-4">
-          <span>B Border</span>
+      {!isSuperCompact ? (
+        <div className="px-5 py-2 bg-[#121417] border-t border-white/5 text-[9px] text-white/30 tracking-[0.2em] uppercase flex items-center justify-between">
+          <span>Hotkeys: [1] Work [2] Short [3] Deep [4] Long [R] Reset [P] Pin [C] Compact</span>
+          <div className="flex items-center gap-4">
+            <span>B Border</span>
+            <span className="byline">made by Wilsman</span>
+          </div>
+        </div>
+      ) : (
+        <div className="px-3 py-1.5 bg-[#121417] border-t border-white/5 text-[9px] text-white/35 tracking-[0.2em] uppercase flex items-center justify-between">
+          <span>Hotkeys: [C] Full [R] Reset</span>
           <span className="byline">made by Wilsman</span>
         </div>
-      </div>
+      )}
     </div>
   );
 };
