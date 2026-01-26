@@ -1,20 +1,79 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+  <h1>TermiDoro</h1>
+  <p>
+    <strong>Focus like a developer.</strong><br>
+    A terminal-inspired, minimalist Pomodoro timer built for deep work sessions.
+  </p>
 </div>
 
-# Run and deploy your AI Studio app
+<br>
 
-This contains everything you need to run your app locally.
+TermiDoro is a desktop application that brings the productivity of the Pomodoro technique into a sleek, command-line interface aesthetic. It is designed to stay out of your way while keeping you focused, featuring unobtrusive notifications, keyboard shortcuts, and a "hacker-mode" visual style.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1ROd9zQ37Bn7LmB-VJMI8pBK_7QxtmdHH
+## ✨ Features
 
-## Run Locally
+- **Terminal Aesthetics**: A clean, dark-mode interface that fits right in with your IDE.
+- **Multiple Modes**:
+  - `WORK` (25m): Standard productive sprint.
+  - `SHORT` (5m): Quick recharge break.
+  - `DEEP` (50m): Extended focus block for complex tasks.
+- **Keyboard First**: Control everything without touching the mouse.
+- **Always on Top (Pin)**: Keep your timer visible during intense sprints.
+- **Ghost Mode**: Adjustable opacity to blend into your wallpaper.
+- **History Log**: Keeps a running log of your session commands and completed cycles.
+- **Window Controls**: Toggle window borders for a truly seamless overlay experience.
 
-**Prerequisites:**  Node.js
+## ⌨️ Hotkeys
 
+| Key | Action |
+| :--- | :--- |
+| `1` | Start **Work** Timer (25m) |
+| `2` | Start **Short Break** (5m) |
+| `3` | Start **Deep Work** (50m) |
+| `R` | **Reset** Timer |
+| `P` | Toggle **Pin** (Always on Top) |
+| `B` | Toggle **Window Border** |
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🛠️ Stack
+
+Built with a high-performance modern web stack:
+
+- **[Tauri](https://tauri.app/)**: Tiny, fast, and secure desktop bundle.
+- **[React](https://react.dev/)**: Reactive UI component architecture.
+- **[TypeScript](https://www.typescriptlang.org/)**: Type-safe logic.
+- **[Tailwind CSS](https://tailwindcss.com/)**: Utility-first styling.
+- **[Bun](https://bun.sh/)**: Fast packaged manager and bundler.
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- **Node.js** & **Bun**
+- **Rust** (required for Tauri) - [Install Rust](https://www.rust-lang.org/tools/install)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/termidoro.git
+   cd termidoro
+   ```
+
+2. Install dependencies:
+   ```bash
+   bun install
+   ```
+
+3. Run in development mode:
+   ```bash
+   bun run tauri dev
+   ```
+
+4. Build for production:
+   ```bash
+   bun run tauri build
+   ```
+
+##  License
+
+MIT
