@@ -1,0 +1,5 @@
+{
+  "name": "TermiDoro",
+  "description": "A terminal-styled Pomodoro timer with high-contrast aesthetics and clean CLI-inspired animations.",
+  "requestFramePermissions": []
+}
