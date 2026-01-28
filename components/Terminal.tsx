@@ -1,9 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { LogicalSize } from "@tauri-apps/api/dpi";
 import { HistoryItem, TimerState, TimerMode } from "../types";
 import { MODE_SETTINGS, COMMANDS } from "../constants";
+import "../electron.d.ts";
 
 interface TerminalProps {
   state: TimerState;
@@ -19,7 +17,7 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
   const [decorationsEnabled, setDecorationsEnabled] = useState(false);
   const [opacity, setOpacity] = useState(1);
   const [isSuperCompact, setIsSuperCompact] = useState(true);
-  const compactSizeRef = useRef<LogicalSize | null>(null);
+  const compactSizeRef = useRef<{ width: number; height: number } | null>(null);
 
   const MIN_WINDOW_WIDTH = 520;
   const MIN_WINDOW_HEIGHT = 240;
@@ -31,8 +29,8 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
   }, []);
 
   useEffect(() => {
-    invoke("set_always_on_top", { enabled: true }).catch(() => {});
-    invoke("set_decorations", { enabled: false }).catch(() => {});
+    window.electronAPI?.setAlwaysOnTop(true).catch(() => {});
+    window.electronAPI?.setDecorations(false).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -81,53 +79,48 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
       ? "bg-sky-400"
       : state.mode === "long_break"
         ? "bg-cyan-300"
-      : state.mode === "deep_work"
-        ? "bg-amber-400"
-        : "bg-emerald-400";
+        : state.mode === "deep_work"
+          ? "bg-amber-400"
+          : "bg-emerald-400";
 
   const toggleAlwaysOnTop = () => {
     const next = !isAlwaysOnTop;
     setIsAlwaysOnTop(next);
-    invoke("set_always_on_top", { enabled: next }).catch(() => {});
+    window.electronAPI?.setAlwaysOnTop(next).catch(() => {});
   };
 
   const toggleDecorations = () => {
     const next = !decorationsEnabled;
     setDecorationsEnabled(next);
-    invoke("set_decorations", { enabled: next }).catch(() => {});
+    window.electronAPI?.setDecorations(next).catch(() => {});
   };
 
   const toggleSuperCompact = useCallback(async () => {
-    const appWindow = getCurrentWindow();
-
     if (!isSuperCompact) {
       try {
-        const currentSize = await appWindow.innerSize();
-        const scaleFactor = await appWindow.scaleFactor();
-        const currentLogicalSize = currentSize.toLogical(scaleFactor);
-        compactSizeRef.current = currentLogicalSize;
-        const targetWidth = Math.max(
-          Math.round(currentLogicalSize.width / 2),
-          1,
-        );
-        const targetHeight = Math.min(
-          currentLogicalSize.height,
-          SUPER_COMPACT_HEIGHT,
-        );
-        await appWindow.setMinSize(
-          new LogicalSize(targetWidth, targetHeight),
-        );
-        await appWindow.setSize(
-          new LogicalSize(targetWidth, targetHeight),
-        );
+        const currentSize = await window.electronAPI?.getWindowSize();
+        if (currentSize) {
+          compactSizeRef.current = currentSize;
+          const targetWidth = Math.max(Math.round(currentSize.width / 2), 1);
+          const targetHeight = Math.min(
+            currentSize.height,
+            SUPER_COMPACT_HEIGHT,
+          );
+          await window.electronAPI?.setMinSize(targetWidth, targetHeight);
+          await window.electronAPI?.setWindowSize(targetWidth, targetHeight);
+        }
       } catch {}
     } else {
       try {
         if (compactSizeRef.current) {
-          await appWindow.setSize(compactSizeRef.current);
+          await window.electronAPI?.setWindowSize(
+            compactSizeRef.current.width,
+            compactSizeRef.current.height,
+          );
         }
-        await appWindow.setMinSize(
-          new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT),
+        await window.electronAPI?.setMinSize(
+          MIN_WINDOW_WIDTH,
+          MIN_WINDOW_HEIGHT,
         );
         compactSizeRef.current = null;
       } catch {}
@@ -142,7 +135,7 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
         event.preventDefault();
         const next = !decorationsEnabled;
         setDecorationsEnabled(next);
-        invoke("set_decorations", { enabled: next }).catch(() => {});
+        window.electronAPI?.setDecorations(next).catch(() => {});
         return;
       }
 
@@ -175,8 +168,7 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
   }, [decorationsEnabled, onCommand, toggleSuperCompact]);
 
   const handleClose = () => {
-    const appWindow = getCurrentWindow();
-    appWindow.close().catch(() => {});
+    window.electronAPI?.closeWindow().catch(() => {});
   };
 
   const handleOpacityChange = (value: number) => {
@@ -186,27 +178,31 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
 
   return (
     <div
-      data-tauri-drag-region
+      style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       className={`flex flex-col h-full w-full bg-[#121417] ${decorationsEnabled ? "rounded-2xl border border-white/10" : "rounded-none border border-transparent"} ${isSuperCompact ? "shadow-[0_20px_50px_rgba(0,0,0,0.45)]" : "shadow-[0_30px_80px_rgba(0,0,0,0.55)]"} overflow-hidden font-mono transition-all duration-500`}
     >
       {/* Title Bar */}
       <div
-        data-tauri-drag-region
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         className={`flex items-center justify-between ${isSuperCompact ? "px-3 py-1.5" : "px-4 py-2"} bg-[#171b21] border-b border-white/5 shrink-0`}
       >
-        <div data-tauri-drag-region className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <div
             className={`h-2 w-2 rounded-full ${state.isActive ? "bg-emerald-400/90" : "bg-white/40"}`}
           ></div>
-          <div className={`text-[10px] text-white/60 select-none tracking-[0.25em] uppercase ${isSuperCompact ? "hidden sm:block" : ""}`}>
+          <div
+            className={`text-[10px] text-white/60 select-none tracking-[0.25em] uppercase ${isSuperCompact ? "hidden sm:block" : ""}`}
+          >
             TermiDoro
           </div>
         </div>
-        <div className="flex items-center gap-2" data-tauri-drag-region="false">
+        <div
+          className="flex items-center gap-2"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
           <button
             type="button"
             onClick={toggleAlwaysOnTop}
-            data-tauri-drag-region="false"
             className={`text-[10px] px-2 py-1 rounded-md border ${isAlwaysOnTop ? "border-cyan-400/50 text-cyan-300" : "border-white/10 text-white/40"} hover:text-white/70 transition`}
           >
             Pin
@@ -214,7 +210,6 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
           <button
             type="button"
             onClick={toggleSuperCompact}
-            data-tauri-drag-region="false"
             className={`text-[10px] px-2 py-1 rounded-md border ${isSuperCompact ? "border-amber-300/60 text-amber-200" : "border-white/10 text-white/40"} hover:text-white/70 transition`}
           >
             {isSuperCompact ? "Full" : "Compact"}
@@ -223,15 +218,14 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
             <button
               type="button"
               onClick={() => setIsMenuOpen((prev) => !prev)}
-              data-tauri-drag-region="false"
               className="text-[10px] px-2 py-1 rounded-md border border-white/10 text-white/50 hover:text-white/80 transition"
             >
               Menu
             </button>
             {isMenuOpen && (
               <div
-                data-tauri-drag-region="false"
                 className="absolute right-0 mt-2 w-56 bg-[#11151a] border border-white/10 rounded-lg p-3 shadow-xl z-20"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
               >
                 <div className="text-[9px] text-white/30 uppercase tracking-[0.2em]">
                   Quick Actions
@@ -241,7 +235,6 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
                     <button
                       key={cmd.id}
                       onClick={() => onCommand((cmd.mode as any) || "reset")}
-                      data-tauri-drag-region="false"
                       className="px-2 py-1.5 text-[10px] text-left border border-white/10 bg-[#1b2026] hover:bg-[#242a31] hover:border-cyan-400/30 text-gray-300 transition rounded-md group flex items-center gap-2"
                     >
                       <span className="text-cyan-300 font-bold group-hover:scale-110 transition-transform">
@@ -271,13 +264,11 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
                     onChange={(event) =>
                       handleOpacityChange(Number(event.target.value))
                     }
-                    data-tauri-drag-region="false"
                     className="w-full h-1 accent-cyan-400 bg-white/10 rounded-full"
                   />
                   <button
                     type="button"
                     onClick={toggleDecorations}
-                    data-tauri-drag-region="false"
                     className="w-full px-2 py-1.5 text-[10px] text-left border border-white/10 bg-[#1b2026] hover:bg-[#242a31] hover:border-cyan-400/30 text-gray-300 transition rounded-md"
                   >
                     {decorationsEnabled
@@ -287,12 +278,15 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
                   <button
                     type="button"
                     onClick={toggleSuperCompact}
-                    data-tauri-drag-region="false"
                     className="w-full px-2 py-1.5 text-[10px] text-left border border-white/10 bg-[#1b2026] hover:bg-[#242a31] hover:border-amber-300/40 text-gray-300 transition rounded-md"
                   >
-                    {isSuperCompact ? "Exit Super Compact" : "Enter Super Compact"}
+                    {isSuperCompact
+                      ? "Exit Super Compact"
+                      : "Enter Super Compact"}
                   </button>
-                  <div className="text-[9px] text-white/25">Hotkeys: B Border / C Compact</div>
+                  <div className="text-[9px] text-white/25">
+                    Hotkeys: B Border / C Compact
+                  </div>
                 </div>
               </div>
             )}
@@ -303,7 +297,6 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
           <button
             type="button"
             onClick={handleClose}
-            data-tauri-drag-region="false"
             className="text-[10px] px-2 py-1 rounded-md border border-white/10 text-white/50 hover:text-white/80 hover:border-rose-400/40 transition ml-1"
           >
             Close
@@ -318,7 +311,10 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
       >
         {!isSuperCompact &&
           history.slice(-1).map((item, idx) => (
-            <div key={idx} className="space-y-1 animate-in fade-in duration-300">
+            <div
+              key={idx}
+              className="space-y-1 animate-in fade-in duration-300"
+            >
               <div className="flex items-center gap-3">
                 <span className="text-cyan-400 font-bold text-lg leading-none">
                   &gt;
@@ -390,13 +386,17 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
             </div>
 
             <div className="flex items-center gap-3 mt-1">
-              <div className={`relative ${isSuperCompact ? "h-[4px]" : "h-[6px]"} flex-1 bg-white/[0.03] rounded-full overflow-hidden border border-white/10`}>
+              <div
+                className={`relative ${isSuperCompact ? "h-[4px]" : "h-[6px]"} flex-1 bg-white/[0.03] rounded-full overflow-hidden border border-white/10`}
+              >
                 <div
                   className={`h-full transition-all duration-1000 ease-linear ${progressColor} ${state.isActive ? "animate-pulse" : ""}`}
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <div className={`${isSuperCompact ? "text-[9px]" : "text-[10px]"} font-bold text-white/30 tabular-nums w-8`}>
+              <div
+                className={`${isSuperCompact ? "text-[9px]" : "text-[10px]"} font-bold text-white/30 tabular-nums w-8`}
+              >
                 {progressPercent}%
               </div>
             </div>
@@ -413,7 +413,10 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
 
       {!isSuperCompact ? (
         <div className="px-5 py-2 bg-[#121417] border-t border-white/5 text-[9px] text-white/30 tracking-[0.2em] uppercase flex items-center justify-between">
-          <span>Hotkeys: [1] Work [2] Short [3] Deep [4] Long [R] Reset [P] Pin [C] Compact</span>
+          <span>
+            Hotkeys: [1] Work [2] Short [3] Deep [4] Long [R] Reset [P] Pin [C]
+            Compact
+          </span>
           <div className="flex items-center gap-4">
             <span>B Border</span>
             <span className="byline">made by Wilsman</span>
