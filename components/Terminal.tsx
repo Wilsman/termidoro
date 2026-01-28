@@ -21,7 +21,8 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
   const [isSuperCompact, setIsSuperCompact] = useState(true);
   const compactSizeRef = useRef<LogicalSize | null>(null);
 
-  const SUPER_COMPACT_WIDTH = 520;
+  const MIN_WINDOW_WIDTH = 520;
+  const MIN_WINDOW_HEIGHT = 240;
   const SUPER_COMPACT_HEIGHT = 240;
 
   useEffect(() => {
@@ -105,13 +106,16 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
         const scaleFactor = await appWindow.scaleFactor();
         const currentLogicalSize = currentSize.toLogical(scaleFactor);
         compactSizeRef.current = currentLogicalSize;
-        const targetWidth = Math.min(
-          currentLogicalSize.width,
-          SUPER_COMPACT_WIDTH,
+        const targetWidth = Math.max(
+          Math.round(currentLogicalSize.width / 2),
+          1,
         );
         const targetHeight = Math.min(
           currentLogicalSize.height,
           SUPER_COMPACT_HEIGHT,
+        );
+        await appWindow.setMinSize(
+          new LogicalSize(targetWidth, targetHeight),
         );
         await appWindow.setSize(
           new LogicalSize(targetWidth, targetHeight),
@@ -122,6 +126,9 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
         if (compactSizeRef.current) {
           await appWindow.setSize(compactSizeRef.current);
         }
+        await appWindow.setMinSize(
+          new LogicalSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT),
+        );
         compactSizeRef.current = null;
       } catch {}
     }
