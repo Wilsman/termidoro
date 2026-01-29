@@ -54,6 +54,7 @@
         "dmg"
       ],
       "icon": "icon.png"
-    }
+    },
+    "publish": null
   }
 }
