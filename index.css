@@ -117,17 +117,16 @@ body {
 }
 
 .celebration-streaks {
-  background:
-    conic-gradient(
-      from 120deg,
-      transparent 0deg,
-      rgba(255, 255, 255, 0.05) 25deg,
-      transparent 60deg,
-      rgba(255, 255, 255, 0.06) 90deg,
-      transparent 140deg,
-      rgba(255, 255, 255, 0.05) 180deg,
-      transparent 360deg
-    );
+  background: conic-gradient(
+    from 120deg,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.05) 25deg,
+    transparent 60deg,
+    rgba(255, 255, 255, 0.06) 90deg,
+    transparent 140deg,
+    rgba(255, 255, 255, 0.05) 180deg,
+    transparent 360deg
+  );
   mix-blend-mode: screen;
 }
 
@@ -273,5 +272,85 @@ body {
   50% {
     opacity: 0.7;
     transform: translateY(-2px);
+  }
+}
+
+/* Progress Bar */
+.progress-bar-container {
+  flex: 1;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #a855f7 0%, #8b5cf6 50%, #7c3aed 100%);
+  border-radius: 2px;
+  transition: width 1s linear;
+  box-shadow:
+    0 0 20px rgba(168, 85, 247, 0.4),
+    0 0 40px rgba(139, 92, 246, 0.2);
+  animation: progressGlow 2s ease-in-out infinite;
+}
+
+.progress-bar-fill::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
+  animation: progressShine 3s ease-in-out infinite;
+}
+
+.progress-bar-dots {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.12) 0.5px,
+    transparent 0.5px
+  );
+  background-size: 3px 3px;
+  background-position: 1px 1px;
+  pointer-events: none;
+}
+
+@keyframes progressGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 15px rgba(168, 85, 247, 0.3),
+      0 0 30px rgba(139, 92, 246, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 25px rgba(168, 85, 247, 0.5),
+      0 0 50px rgba(139, 92, 246, 0.3);
+  }
+}
+
+@keyframes progressShine {
+  0% {
+    transform: translateX(-100%);
+  }
+  50%,
+  100% {
+    transform: translateX(200%);
   }
 }

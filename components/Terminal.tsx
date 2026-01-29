@@ -6,7 +6,16 @@ import "../electron.d.ts";
 interface TerminalProps {
   state: TimerState;
   history: HistoryItem[];
-  onCommand: (mode: TimerMode | "reset") => void;
+  onCommand: (mode: TimerMode | "reset" | "pause") => void;
+}
+
+function SegmentedProgressBar({ percent }: { percent: number }) {
+  return (
+    <div className="progress-bar-container">
+      <div className="progress-bar-fill" style={{ width: `${percent}%` }} />
+      <div className="progress-bar-dots" />
+    </div>
+  );
 }
 
 const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
@@ -101,7 +110,7 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
         const currentSize = await window.electronAPI?.getWindowSize();
         if (currentSize) {
           compactSizeRef.current = currentSize;
-          const targetWidth = Math.max(Math.round(currentSize.width / 2), 1);
+          const targetWidth = Math.max(Math.round(currentSize.width * 0.7), 1);
           const targetHeight = Math.min(
             currentSize.height,
             SUPER_COMPACT_HEIGHT,
@@ -156,6 +165,9 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
         onCommand("reset");
       } else if (event.code === "KeyP") {
         event.preventDefault();
+        onCommand("pause");
+      } else if (event.code === "KeyT") {
+        event.preventDefault();
         toggleAlwaysOnTop();
       } else if (event.code === "KeyC") {
         event.preventDefault();
@@ -186,74 +198,163 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
         className={`flex items-center justify-between ${isSuperCompact ? "px-3 py-1.5" : "px-4 py-2"} bg-[#171b21] border-b border-white/5 shrink-0`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <div
-            className={`h-2 w-2 rounded-full ${state.isActive ? "bg-emerald-400/90" : "bg-white/40"}`}
-          ></div>
-          <div
-            className={`text-[10px] text-white/60 select-none tracking-[0.25em] uppercase ${isSuperCompact ? "hidden sm:block" : ""}`}
-          >
-            TermiDoro
-          </div>
+            className={`h-2 w-2 rounded-full transition-colors ${state.isActive ? "bg-emerald-400 animate-pulse" : "bg-white/30"}`}
+          />
+          <span className="text-[10px] text-white/50 select-none tracking-[0.2em] uppercase">
+            {state.isActive ? "Running" : "Paused"}
+          </span>
         </div>
         <div
-          className="flex items-center gap-2"
+          className="flex items-center gap-1"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         >
           <button
             type="button"
             onClick={toggleAlwaysOnTop}
-            className={`text-[10px] px-2 py-1 rounded-md border ${isAlwaysOnTop ? "border-cyan-400/50 text-cyan-300" : "border-white/10 text-white/40"} hover:text-white/70 transition`}
+            className={`w-7 h-7 flex items-center justify-center rounded transition-all ${isAlwaysOnTop ? "text-cyan-400 bg-cyan-400/10" : "text-white/30 hover:text-white/60 hover:bg-white/5"}`}
+            title="Pin on top (T)"
           >
-            Pin
+            <svg
+              className="w-3.5 h-3.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.715-5.349L10 6.477V16h2a1 1 0 110 2H8a1 1 0 110-2h2V6.477L6.237 7.582l1.715 5.349a1 1 0 01-.285 1.05A3.989 3.989 0 015 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L9 4.323V3a1 1 0 011-1z" />
+            </svg>
           </button>
           <button
             type="button"
-            onClick={toggleSuperCompact}
-            className={`text-[10px] px-2 py-1 rounded-md border ${isSuperCompact ? "border-amber-300/60 text-amber-200" : "border-white/10 text-white/40"} hover:text-white/70 transition`}
+            onClick={() => onCommand("pause")}
+            className="w-7 h-7 flex items-center justify-center rounded text-white/30 hover:text-white/60 hover:bg-white/5 transition-all"
+            title="Pause/Resume (P)"
           >
-            {isSuperCompact ? "Full" : "Compact"}
+            {state.isActive ? (
+              <svg
+                className="w-3.5 h-3.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : (
+              <svg
+                className="w-3.5 h-3.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => onCommand("reset")}
+            className="w-7 h-7 flex items-center justify-center rounded text-white/30 hover:text-white/60 hover:bg-white/5 transition-all"
+            title="Reset (R)"
+          >
+            <svg
+              className="w-3.5 h-3.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+          <div className="w-px h-4 bg-white/10 mx-1" />
+          <button
+            type="button"
+            onClick={toggleSuperCompact}
+            className={`w-7 h-7 flex items-center justify-center rounded transition-all ${!isSuperCompact ? "text-amber-400 bg-amber-400/10" : "text-white/30 hover:text-white/60 hover:bg-white/5"}`}
+            title="Toggle view (C)"
+          >
+            <svg
+              className="w-3.5 h-3.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              {isSuperCompact ? (
+                <path
+                  fillRule="evenodd"
+                  d="M3 4a1 1 0 011-1h4a1 1 0 010 2H6.414l2.293 2.293a1 1 0 01-1.414 1.414L5 6.414V8a1 1 0 01-2 0V4zm9 1a1 1 0 010-2h4a1 1 0 011 1v4a1 1 0 01-2 0V6.414l-2.293 2.293a1 1 0 11-1.414-1.414L13.586 5H12zm-9 7a1 1 0 012 0v1.586l2.293-2.293a1 1 0 011.414 1.414L6.414 15H8a1 1 0 010 2H4a1 1 0 01-1-1v-4zm13-1a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 010-2h1.586l-2.293-2.293a1 1 0 011.414-1.414L15 13.586V12a1 1 0 011-1z"
+                  clipRule="evenodd"
+                />
+              ) : (
+                <path
+                  fillRule="evenodd"
+                  d="M5 10a1 1 0 011-1h3V6a1 1 0 112 0v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 01-1-1z"
+                  clipRule="evenodd"
+                />
+              )}
+            </svg>
           </button>
           <div className="relative">
             <button
               type="button"
               onClick={() => setIsMenuOpen((prev) => !prev)}
-              className="text-[10px] px-2 py-1 rounded-md border border-white/10 text-white/50 hover:text-white/80 transition"
+              className={`w-7 h-7 flex items-center justify-center rounded transition-all ${isMenuOpen ? "text-white/60 bg-white/5" : "text-white/30 hover:text-white/60 hover:bg-white/5"}`}
+              title="Menu"
             >
-              Menu
+              <svg
+                className="w-3.5 h-3.5"
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+              </svg>
             </button>
             {isMenuOpen && (
               <div
-                className="absolute right-0 mt-2 w-56 bg-[#11151a] border border-white/10 rounded-lg p-3 shadow-xl z-20"
+                className="absolute right-0 mt-2 w-48 bg-[#11151a] border border-white/10 rounded-lg p-2 shadow-xl z-20"
                 style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
               >
-                <div className="text-[9px] text-white/30 uppercase tracking-[0.2em]">
-                  Quick Actions
+                <div className="text-[9px] text-white/30 uppercase tracking-[0.15em] px-2 py-1">
+                  Timer
                 </div>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {COMMANDS.map((cmd) => (
-                    <button
-                      key={cmd.id}
-                      onClick={() => onCommand((cmd.mode as any) || "reset")}
-                      className="px-2 py-1.5 text-[10px] text-left border border-white/10 bg-[#1b2026] hover:bg-[#242a31] hover:border-cyan-400/30 text-gray-300 transition rounded-md group flex items-center gap-2"
-                    >
-                      <span className="text-cyan-300 font-bold group-hover:scale-110 transition-transform">
-                        $
-                      </span>
-                      <span className="opacity-80 group-hover:opacity-100 font-medium">
-                        {cmd.id}
-                      </span>
-                    </button>
-                  ))}
+                {COMMANDS.map((cmd) => (
+                  <button
+                    key={cmd.id}
+                    onClick={() => {
+                      onCommand((cmd.mode as any) || "reset");
+                      setIsMenuOpen(false);
+                    }}
+                    className="w-full px-2 py-1.5 text-[11px] text-left text-white/60 hover:text-white hover:bg-white/5 transition rounded flex items-center justify-between"
+                  >
+                    <span>{cmd.id}</span>
+                    <span className="text-[9px] text-white/25">
+                      {cmd.mode === "work"
+                        ? "1"
+                        : cmd.mode === "short_break"
+                          ? "2"
+                          : cmd.mode === "deep_work"
+                            ? "3"
+                            : "4"}
+                    </span>
+                  </button>
+                ))}
+                <div className="border-t border-white/10 my-2" />
+                <div className="text-[9px] text-white/30 uppercase tracking-[0.15em] px-2 py-1">
+                  Settings
                 </div>
-                <div className="mt-3 border-t border-white/10 pt-3 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-[9px] text-white/40 uppercase tracking-[0.2em]">
-                      Opacity
-                    </div>
-                    <div className="text-[9px] text-white/40 tabular-nums">
+                <div className="px-2 py-1.5">
+                  <div className="flex items-center justify-between text-[10px] text-white/50 mb-1">
+                    <span>Opacity</span>
+                    <span className="tabular-nums">
                       {Math.round(opacity * 100)}%
-                    </div>
+                    </span>
                   </div>
                   <input
                     type="range"
@@ -266,40 +367,38 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
                     }
                     className="w-full h-1 accent-cyan-400 bg-white/10 rounded-full"
                   />
-                  <button
-                    type="button"
-                    onClick={toggleDecorations}
-                    className="w-full px-2 py-1.5 text-[10px] text-left border border-white/10 bg-[#1b2026] hover:bg-[#242a31] hover:border-cyan-400/30 text-gray-300 transition rounded-md"
-                  >
-                    {decorationsEnabled
-                      ? "Hide Window Border"
-                      : "Show Window Border"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={toggleSuperCompact}
-                    className="w-full px-2 py-1.5 text-[10px] text-left border border-white/10 bg-[#1b2026] hover:bg-[#242a31] hover:border-amber-300/40 text-gray-300 transition rounded-md"
-                  >
-                    {isSuperCompact
-                      ? "Exit Super Compact"
-                      : "Enter Super Compact"}
-                  </button>
-                  <div className="text-[9px] text-white/25">
-                    Hotkeys: B Border / C Compact
-                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleDecorations();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full px-2 py-1.5 text-[11px] text-left text-white/60 hover:text-white hover:bg-white/5 transition rounded"
+                >
+                  {decorationsEnabled ? "Hide border" : "Show border"}
+                </button>
               </div>
             )}
           </div>
-          <div className="text-[9px] text-white/35 select-none tracking-[0.2em] uppercase">
-            {state.isActive ? "Running" : "Idle"}
-          </div>
+          <div className="w-px h-4 bg-white/10 mx-1" />
           <button
             type="button"
             onClick={handleClose}
-            className="text-[10px] px-2 py-1 rounded-md border border-white/10 text-white/50 hover:text-white/80 hover:border-rose-400/40 transition ml-1"
+            className="w-7 h-7 flex items-center justify-center rounded text-white/30 hover:text-rose-400 hover:bg-rose-400/10 transition-all"
+            title="Close"
           >
-            Close
+            <svg
+              className="w-3.5 h-3.5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
           </button>
         </div>
       </div>
@@ -386,14 +485,7 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
             </div>
 
             <div className="flex items-center gap-3 mt-1">
-              <div
-                className={`relative ${isSuperCompact ? "h-[4px]" : "h-[6px]"} flex-1 bg-white/[0.03] rounded-full overflow-hidden border border-white/10`}
-              >
-                <div
-                  className={`h-full transition-all duration-1000 ease-linear ${progressColor} ${state.isActive ? "animate-pulse" : ""}`}
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
+              <SegmentedProgressBar percent={progressPercent} />
               <div
                 className={`${isSuperCompact ? "text-[9px]" : "text-[10px]"} font-bold text-white/30 tabular-nums w-8`}
               >
@@ -414,8 +506,8 @@ const Terminal: React.FC<TerminalProps> = ({ state, history, onCommand }) => {
       {!isSuperCompact ? (
         <div className="px-5 py-2 bg-[#121417] border-t border-white/5 text-[9px] text-white/30 tracking-[0.2em] uppercase flex items-center justify-between">
           <span>
-            Hotkeys: [1] Work [2] Short [3] Deep [4] Long [R] Reset [P] Pin [C]
-            Compact
+            Hotkeys: [1] Work [2] Short [3] Deep [4] Long [R] Reset [P] Pause
+            [T] Pin [C] Compact
           </span>
           <div className="flex items-center gap-4">
             <span>B Border</span>

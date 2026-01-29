@@ -5,17 +5,25 @@ let mainWindow;
 
 const isDev = process.env.NODE_ENV === "development" || !app.isPackaged;
 
+function getIconPath() {
+  if (isDev) {
+    return path.join(__dirname, "../icon.png");
+  }
+  return path.join(process.resourcesPath, "icon.png");
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 520,
+    width: 580,
     height: 240,
-    minWidth: 520,
-    minHeight: 240,
+    minWidth: 400,
+    minHeight: 200,
     resizable: true,
     frame: false,
     alwaysOnTop: true,
     transparent: false,
     backgroundColor: "#121417",
+    icon: getIconPath(),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

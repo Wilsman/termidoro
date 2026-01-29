@@ -15,6 +15,12 @@ dist-ssr
 # Electron build output
 release
 
+# Bun
+bun.lockb
+
+# Other projects
+bubbletea-termidoro/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
